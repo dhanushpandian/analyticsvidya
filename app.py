@@ -1,43 +1,41 @@
-from keras.models import load_model  # TensorFlow is required for Keras to work
-from PIL import Image, ImageOps  # Install pillow instead of PIL
+from keras.models import load_model
+from PIL import Image, ImageOps
 import numpy as np
+import os
+import pandas as pd
 
-# Disable scientific notation for clarity
-np.set_printoptions(suppress=True)
+model = load_model("converted_keras/keras_model.h5", compile=False)
 
-# Load the model
-model = load_model("converted_keras\keras_model.h5", compile=False)
+class_names = open("converted_keras/labels.txt", "r").readlines()
 
-# Load the labels
-class_names = open("labels.txt", "r").readlines()
+image_dir = "test/test/images"
 
-# Create the array of the right shape to feed into the keras model
-# The 'length' or number of images you can put into the array is
-# determined by the first position in the shape tuple, in this case 1
-data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+predictions = []
 
-# Replace this with the path to your image
-image = Image.open("C:\\Users\\91638\\OneDrive\\Desktop\\git files\\analyticsvidya\\test\\test\\images\\7201.jpg").convert("RGB")
+for filename in os.listdir(image_dir):
+    if filename.endswith(".jpg"):
+        data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 
-# resizing the image to be at least 224x224 and then cropping from the center
-size = (224, 224)
-image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
+        image_path = os.path.join(image_dir, filename)
+        image = Image.open(image_path).convert("RGB")
+        size = (224, 224)
+        image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
+        image_array = np.asarray(image)
+        normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+        data[0] = normalized_image_array
 
-# turn the image into a numpy array
-image_array = np.asarray(image)
+        prediction = model.predict(data)
+        index = np.argmax(prediction)
+        class_name = class_names[index]
 
-# Normalize the image
-normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+        predictions.append({
+            'image_id': os.path.splitext(filename)[0],
+            'label': class_name[2:].strip()
+        })
 
-# Load the image into the array
-data[0] = normalized_image_array
+df = pd.DataFrame(predictions)
 
-# Predicts the model
-prediction = model.predict(data)
-index = np.argmax(prediction)
-class_name = class_names[index]
-confidence_score = prediction[0][index]
+output_csv_path = "result.csv"
+df.to_csv(output_csv_path, index=False)
 
-# Print prediction and confidence score
-print("Class:", class_name[2:], end="")
-print("Confidence Score:", confidence_score)
+print("Predictions saved to:", output_csv_path)
